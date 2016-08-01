@@ -142,6 +142,11 @@ class Builder
   private
 
   def get_touch_unit_server(directory)
+    preinstalled_touch_unit_server = ENV['TOUCH_SERVER_PATH']
+    if preinstalled_touch_unit_server && !preinstalled_touch_unit_server.empty? && File.exist?(preinstalled_touch_unit_server)
+      return preinstalled_touch_unit_server
+    end
+
     # clone Touch.Unit
     `git clone git@github.com:spouliot/Touch.Unit.git #{directory}`
     server_project_path = File.join(directory, 'Touch.Server/Touch.Server.csproj')
