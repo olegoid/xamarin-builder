@@ -1,5 +1,6 @@
 require_relative './analyzer'
 require_relative './common_constants'
+require_relative './timer'
 
 class Builder
   def initialize(path, configuration, platform, project_type_filter=nil)
@@ -33,10 +34,53 @@ class Builder
       puts "\e[34m#{build_command}\e[0m"
       puts
 
-      raise 'Build failed' unless system(build_command.join(' '))
+      if ([MDTOOL_PATH, 'build'] & build_command).present?
+        run_mdtool_in_diagnostic_mode(build_command)
+      else
+        raise 'Build failed' unless system(build_command.join(' '))
+      end
     end
 
     @generated_files = @analyzer.collect_generated_files(@configuration, @platform, @project_type_filter)
+  end
+
+  # README:
+  # This method will run `mdtool build` in diagnostic mode.
+  # If mdtool will hang trying to load projects its process will be killed
+  # and stack trace for each thread of mdtool will be printed to stdout.
+  # Issue on Bugzilla: https://bugzilla.xamarin.com/show_bug.cgi?id=42378
+
+  # List of things to be removed as as soon as #42378 will be resolved:
+  # 1) run_mdtool_in_diagnostic_mode method
+  # 2) hijack_process method
+  # 3) MDTOOL_PATH constant in Builder class
+  # 4) Entire Timer class
+  # 5) if/else logic in Builder.build
+
+  MDTOOL_PATH = "\"/Applications/Xamarin Studio.app/Contents/MacOS/mdtool\""
+
+  def run_mdtool_in_diagnostic_mode(mdtool_build_command)
+    pipe = nil
+
+    timer = Timer.new(900) { # 15 minutes timeout
+      hijack_process(pipe.pid)
+    }
+
+    puts
+    puts "Run build in diagnostic mode: \e[34m#{build_command}\e[0m"
+    puts
+
+    pipe = IO.popen(mdtool_build_command.join(' '))
+
+    pipe.each do |line|
+      puts line
+      timer.stop if timer.running?
+      timer.start if line.include? "Loading projects"
+    end
+  end
+
+  def hijack_process(process_id)
+    puts `kill -QUIT #{process_id}`
   end
 
   def build_solution
