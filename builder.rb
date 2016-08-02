@@ -34,7 +34,7 @@ class Builder
       puts "\e[34m#{build_command}\e[0m"
       puts
 
-      if ([MDTOOL_PATH, 'build'] & build_command).present?
+      if ([MDTOOL_PATH, 'build', 'archive'] & build_command).any?
         run_mdtool_in_diagnostic_mode(build_command)
       else
         raise 'Build failed' unless system(build_command.join(' '))
@@ -67,12 +67,10 @@ class Builder
     }
 
     puts
-    puts "Run build in diagnostic mode: \e[34m#{build_command}\e[0m"
+    puts "Run build in diagnostic mode: \e[34m#{mdtool_build_command}\e[0m"
     puts
 
-    pipe = IO.popen(mdtool_build_command.join(' '))
-
-    pipe.each do |line|
+    pipe = IO.popen(mdtool_build_command.join(' ')).each do |line|
       puts line
       timer.stop if timer.running?
       timer.start if line.include? "Loading projects"
