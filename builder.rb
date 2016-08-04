@@ -1,3 +1,5 @@
+require 'open3'
+
 require_relative './analyzer'
 require_relative './common_constants'
 require_relative './timer'
@@ -60,20 +62,25 @@ class Builder
   MDTOOL_PATH = "\"/Applications/Xamarin Studio.app/Contents/MacOS/mdtool\""
 
   def run_mdtool_in_diagnostic_mode(mdtool_build_command)
-    pipe = nil
+    pid = nil
 
     timer = Timer.new(300) { # 5 minutes timeout
-      hijack_process(pipe.pid)
+      hijack_process(pid)
     }
 
     puts
     puts "Run build in diagnostic mode: \e[34m#{mdtool_build_command}\e[0m"
     puts
 
-    pipe = IO.popen(mdtool_build_command.join(' ')).each do |line|
-      puts line
-      timer.stop if timer.running?
-      timer.start if line.include? "Loading projects"
+    Open3.popen3(mdtool_build_command.join(' ')) do |stdin, stdout, stderr, wait_thr|
+      pid = wait_thr.pid # pid of the started process.
+
+      stdout.each do |line|
+        puts line
+
+        timer.stop if timer.running?
+        timer.start if line.include? "Loading projects"
+      end
     end
   end
 
